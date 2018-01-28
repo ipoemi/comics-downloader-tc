@@ -1,19 +1,17 @@
 package ipoemi.comicsdownloader.util
 
-import ipoemi.comicsdownloader.IO
-
-trait ContentParser[N[_], A, F[_]] {
-  def parseBooks(s: N[String]): F[N[List[N[A]]]]
-  def parsePages(s: N[String]): F[N[List[N[A]]]]
+trait ContentParser[F[_], A] {
+  def parseBooks(s: String): List[F[A]]
+  def parsePages(s: String): List[F[A]]
 }
 
 object ContentParser {
-  def apply[N[_], A, F[_]](implicit ev: ContentParser[N, A, F]) = ev
+  def apply[N[_], A](implicit ev: ContentParser[N, A]) = ev
 }
 
 object ContentParserSyntax {
-  implicit class ContentParserOps[N[_], A, F[_]](ns: N[String]) {
-    def parseBooks(implicit ev: ContentParser[N, A, F]) = ev.parseBooks(ns)
-    def parsePages(implicit ev: ContentParser[N, A, F]) = ev.parsePages(ns)
+  implicit class ContentParserOps[F[_], A](s: String) {
+    def parseBooks(implicit ev: ContentParser[F, A]) = ev.parseBooks(s)
+    def parsePages(implicit ev: ContentParser[F, A]) = ev.parsePages(s)
   }
 }

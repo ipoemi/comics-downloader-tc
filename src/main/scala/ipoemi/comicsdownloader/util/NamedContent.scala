@@ -14,7 +14,7 @@ trait NamedContent[F[_]] {
 object NamedContentSyntax extends NamedContent.ToNamedContentOps
 
 object NamedContentInstances {
-  implicit def namedContentTraverse[F[_], A](implicit nc: NamedContent[F], fc: Functor[F]) =
+  implicit def namedContentTraverse[F[_], A](implicit nc: NamedContent[F], ff: Functor[F]) =
     new Traverse[F] {
       def traverse[G[_], A, B](fa: F[A])(f: A => G[B])(implicit ev: Applicative[G]): G[F[B]] =
         ev.map(f(nc.content(fa)))(c => fa.map(_ => c))
