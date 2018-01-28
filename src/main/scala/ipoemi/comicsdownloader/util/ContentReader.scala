@@ -40,7 +40,6 @@ object ContentReaderInstances {
 
   import ToUrlSyntax._
   import cats.{Traverse, Applicative}
-  import cats.instances.future._
   import cats.syntax.functor._
   import cats.syntax.traverse._
   import cats.syntax.applicative._
