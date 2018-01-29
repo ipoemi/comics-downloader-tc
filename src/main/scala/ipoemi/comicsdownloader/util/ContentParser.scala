@@ -6,12 +6,16 @@ trait ContentParser[F[_], A] {
 }
 
 object ContentParser {
-  def apply[N[_], A](implicit ev: ContentParser[N, A]) = ev
+  def apply[N[_], A](implicit C: ContentParser[N, A]): ContentParser[N, A] = C
+
+  trait Syntax {
+    implicit class ContentParserOps[F[_], A](s: String) {
+      def parseBooks(implicit C: ContentParser[F, A]): List[F[A]] = C.parseBooks(s)
+      def parsePages(implicit C: ContentParser[F, A]): List[F[A]] = C.parsePages(s)
+    }
+  }
+
 }
 
-object ContentParserSyntax {
-  implicit class ContentParserOps[F[_], A](s: String) {
-    def parseBooks(implicit ev: ContentParser[F, A]) = ev.parseBooks(s)
-    def parsePages(implicit ev: ContentParser[F, A]) = ev.parsePages(s)
-  }
-}
+object ContentParserSyntax extends ContentParser.Syntax
+

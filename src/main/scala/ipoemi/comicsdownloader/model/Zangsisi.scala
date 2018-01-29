@@ -1,5 +1,7 @@
 package ipoemi.comicsdownloader.model
 
+import cats.{Applicative, Eval, Traverse}
+import cats.syntax.functor._
 import ipoemi.comicsdownloader.util._
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
@@ -9,7 +11,7 @@ import net.ruippeixotog.scalascraper.model.Element
 case class Zangsisi[A](name: String, content: A)
 
 object ZangsisiInstances {
-  implicit def zangsisiContentParser =
+  implicit def zangsisiContentParser: ContentParser[Zangsisi, String] =
     new ContentParser[Zangsisi, String] {
 
       val imageExtensions = List("png", "jpg", "gif", "jpeg")
@@ -78,4 +80,20 @@ object ZangsisiInstances {
         links.filter(_.nonEmpty).map(_.get).toList
       }
     }
+
+  implicit def namedContentZangsisi[A]: NamedContent[Zangsisi] = new NamedContent[Zangsisi] {
+    def name[A](fa: Zangsisi[A]): String = fa.name
+
+    def content[A](fa: Zangsisi[A]): A = fa.content
+
+    def traverse[G[_], A, B](fa: Zangsisi[A])(f: A => G[B])(implicit A: Applicative[G]): G[Zangsisi[B]] =
+      f(fa.content).map(x => Zangsisi(fa.name, x))
+
+    def foldLeft[A, B](fa: Zangsisi[A], b: B)(f: (B, A) => B): B =
+      f(b, fa.content)
+
+
+    def foldRight[A, B](fa: Zangsisi[A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] =
+      f(fa.content, lb)
+  }
 }

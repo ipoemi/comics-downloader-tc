@@ -12,7 +12,7 @@ trait ToUrl[A] {
 object ToUrlSyntax extends ToUrl.ToToUrlOps
 
 object ToUrlInstances {
-  implicit val stringToUrl = new ToUrl[String] {
+  implicit val stringToUrl: ToUrl[String] = new ToUrl[String] {
     def toUrl(a: String): URL = new URL(a)
   }
 }

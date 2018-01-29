@@ -1,33 +1,36 @@
 package ipoemi.comicsdownloader
 
-/*
 import java.io.{File => JFile}
 
 import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
-import com.typesafe.config._
 import akka.http.scaladsl.Http
-import ipoemi.comicsdownloader.downloader.AkkaHttpDownloader
-import ipoemi.comicsdownloader.interfaces._
+import akka.stream.ActorMaterializer
+import cats.instances.future._
+import ipoemi.comicsdownloader.model.ZangsisiInstances._
+import ipoemi.comicsdownloader.model._
+import ipoemi.comicsdownloader.service._
+import ipoemi.comicsdownloader.util.ContentReaderInstances._
+import ipoemi.comicsdownloader.util.FlushableInstances._
+import ipoemi.comicsdownloader.util.ToUrlInstances._
 
-import scala.concurrent.ExecutionContextExecutor
-*/
+import scala.concurrent.{ExecutionContextExecutor, Future}
 
 object Main extends App {
 
-  /*
   implicit val actorSystem: ActorSystem = ActorSystem("myActorSystem")
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContextExecutor = actorSystem.dispatcher
-  
-  val downloader = AkkaHttpDownloader(site.ZangsisiBooksParser, site.ZangsisiPagesParser)
+
+  val downloader = ComicsDownloadService[Zangsisi, Future, String]
   for {
-    _ <- downloader.download("http://zangsisi.net/?p=24838", "comics/플투토2").recover {
+    _ <- downloader.downloadComics(
+      Zangsisi("", "http://zangsisi.net/?page_id=123841"),
+      "comics/신부이야기"
+    ).recover {
       case err => err.printStackTrace()
     }
     _ <- Http().shutdownAllConnectionPools()
     _ <- actorSystem.terminate()
   } yield ()
-  */
 
 }
