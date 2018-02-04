@@ -36,7 +36,7 @@ trait ComicsDownloadService[E[_], C[_], A] {
     for {
       _ <- path.toFile.createDirectories().pure[E]
       comics <- R.read(ca)
-      books = parseBooks(comics).map(_.take(1)).value
+      books = parseBooks(comics).map(_.drop(1).take(1)).value
       //_ = books.foreach(println)
       bookContents <- books.traverse(read)
       //_ = bookContents.foreach(println)

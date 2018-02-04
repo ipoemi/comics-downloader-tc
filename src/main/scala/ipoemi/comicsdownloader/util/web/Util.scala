@@ -73,9 +73,10 @@ abstract class Util(
     //val headers = agent +: accept +: session.cookies.toVector
     val headers = agent +: accept +: Vector.empty
     val uri = uriBuilder.toString
+    val newSession = webPath.session.copy(lastUrl = url)
 
     for {
-      req <- Future(webPath.map(_ => HttpRequest(method, uri, headers, entity)))
+      req <- Future(webPath.bimap(_ => newSession, _ => HttpRequest(method, uri, headers, entity)))
       res <- retry(req, connection)
       res1 <- processRedirect(res)
     } yield res1
