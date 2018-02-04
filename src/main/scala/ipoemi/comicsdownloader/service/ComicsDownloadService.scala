@@ -2,93 +2,84 @@ package ipoemi.comicsdownloader.service
 
 import java.io.{File => JFile}
 
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContextExecutor
-
 import better.files._
-import cats.syntax.applicative._
-import cats.syntax.functor._
-import cats.syntax.flatMap._
-import cats.syntax.traverse._
-import cats.{Applicative, Monad, Traverse}
-import cats.instances.list._
-
+import cats._
+import cats.implicits._
 import ipoemi.comicsdownloader.util._
+import ipoemi.comicsdownloader.util.web.Path
 
-trait ComicsDownloadService[N[_], F[_], A] {
-  import cats.syntax.functor._
-  import NamedContentSyntax._
-  import FlushableSyntax._
+import scala.concurrent.Future
 
-  def read(a: N[A]): F[N[String]]
+trait ComicsDownloadService[E[_], C[_], A] {
 
-  def download(a: N[A], path: String): F[File]
+  import TitledSyntax._
 
-  def parseBooks(a: String): List[N[A]]
+  def read(ca: C[A])(implicit R: Readable[E, C, A]): E[C[String]]
 
-  def parsePages(a: String): List[N[A]]
+  def download(ca: C[A], path: String)(implicit R: Readable[E, C, A]): E[C[File]]
 
-  def zipTo(dir: File, target: File)(implicit A: Applicative[F]): F[File] = {
+  def parseBooks(cs: C[String])(implicit P: Parsable[C, A]): C[Vector[C[A]]]
+
+  def parsePages(cs: C[String])(implicit P: Parsable[C, A]): C[Vector[C[A]]]
+
+  def zipTo(dir: File, target: File)(implicit A: Applicative[E]): E[File] = {
     dir.createIfNotExists()
-    dir.zipTo(target).pure[F]
+    dir.zipTo(target).pure[E]
   }
 
-  def downloadComics(a: N[A], path: String)(
-    implicit M: Monad[F], N: NamedContent[N], F: Flushable[F]
-  ): F[List[File]] = {
+  def downloadComics(ca: C[A], path: String)(
+    implicit
+    M: Monad[E], T: Titled[C],
+    P: Parsable[C, A], R: Readable[E, C, A],
+    A: Awaitable[E]
+  ): E[Vector[File]] = {
     for {
-      _ <- path.toFile.createDirectories().pure[F]
-      comics <- read(a)
-      bookSites = parseBooks(comics.content)
-      bookContents <- bookSites.traverse(read)
-      pageSitess = bookContents.map(_.map(parsePages))
-      zipFiles = pageSitess.map(downloadPages(_, path))
+      _ <- path.toFile.createDirectories().pure[E]
+      comics <- R.read(ca)
+      books = parseBooks(comics).map(_.take(1)).value
+      //_ = books.foreach(println)
+      bookContents <- books.traverse(read)
+      //_ = bookContents.foreach(println)
+      booksPages = bookContents.map(parsePages)
+      zipFiles <- booksPages.traverse(downloadPages(_, path))
     } yield zipFiles
   }
 
-  def getPages(a: N[A])(
-    implicit M: Monad[F], N: NamedContent[N], F: Flushable[F]
-  ): N[List[N[A]]] = {
-    read(a).map(_.map(parsePages)).flush
-  }
+  def downloadPages(ca: C[Vector[C[A]]], path: String)(
+    implicit M: Monad[E], R: Readable[E, C, A], T: Titled[C], A: Awaitable[E]
+  ): E[File] = {
+    val title = ca.title
+    val dirPath = path + JFile.separator + title
+    val zipFilePath = dirPath + ".zip"
+    if (ca.value.size > 0)
+      for {
+        _ <- dirPath.toFile.createDirectories().pure[E]
+        _ <- ca.value.traverse(x => download(x, dirPath + JFile.separator + x.title))
+        file <- zipTo(dirPath.toFile, zipFilePath.toFile)
+      } yield file
+    else
+      zipFilePath.toFile.pure[E]
 
-  def downloadPages(a: N[List[N[A]]], path: String)(
-    implicit M: Monad[F], N: NamedContent[N], F: Flushable[F]
-  ): File = {
-    val name = a.name
-    val newPath = path + JFile.separator + name
-    (for {
-      _ <- newPath.toFile.createDirectories().pure[F]
-      _ <- a.map(_.traverse(download(_, newPath)).map(_ => newPath.toFile)).sequence
-      file <- zipTo(newPath.toFile, (newPath + ".zip").toFile)
-    } yield file).flush
   }
 }
 
 object ComicsDownloadService {
-  def apply[N[_], F[_], A](implicit C: ComicsDownloadService[N, F, A]) = C
+  def apply[E[_], C[_], A](implicit C: ComicsDownloadService[E, C, A]) = C
 
-  import cats.syntax.traverse._
-  import cats.syntax.functor._
-  import NamedContentSyntax._
-  import ContentParserSyntax._
-  import ContentReaderSyntax._
+  import ParsableSyntax._
+  import ReadableSyntax._
 
-  implicit def urlComicsDownloadService[N[_], A](
-    implicit
-    A: Applicative[Future],
-    N: NamedContent[N],
-    T: ToUrl[A],
-    CP: ContentParser[N, A],
-    CR: ContentReader[A, Future]
-  ) = new ComicsDownloadService[N, Future, A] {
-    def read(na: N[A]): Future[N[String]] = na.map(_.read).sequence
+  implicit def webComicsDownloadService[C[_]] = new ComicsDownloadService[Future, C, web.Path] {
+    def read(ca: C[web.Path])(implicit R: Readable[Future, C, Path]): Future[C[String]] = ca.read
 
-    def download(na: N[A], path: String): Future[File] =
-      (na.content).download(path + JFile.separator + na.name)
+    def download(ca: C[web.Path], path: String)(
+      implicit R: Readable[Future, C, web.Path]
+    ): Future[C[File]] = ca.download(path)
 
-    def parseBooks(a: String): List[N[A]] = a.parseBooks
+    def parseBooks(cs: C[String])(implicit P: Parsable[C, web.Path]): C[Vector[C[web.Path]]] =
+      cs.parseBooks
 
-    def parsePages(a: String): List[N[A]] = a.parsePages
+    def parsePages(cs: C[String])(implicit P: Parsable[C, web.Path]): C[Vector[C[web.Path]]] =
+      cs.parsePages
   }
 }

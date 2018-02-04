@@ -1,19 +1,25 @@
 package ipoemi.comicsdownloader
 
 import java.io.{File => JFile}
+import java.net.URL
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.HttpMethods
+import akka.http.scaladsl.model.headers._
 import akka.stream.ActorMaterializer
+import cats.data._
 import cats.instances.future._
-import ipoemi.comicsdownloader.model.ZangsisiInstances._
+import ipoemi.comicsdownloader.model.MarumaruInstances._
 import ipoemi.comicsdownloader.model._
 import ipoemi.comicsdownloader.service._
-import ipoemi.comicsdownloader.util.ContentReaderInstances._
-import ipoemi.comicsdownloader.util.FlushableInstances._
-import ipoemi.comicsdownloader.util.ToUrlInstances._
+import ipoemi.comicsdownloader.util._
+import ipoemi.comicsdownloader.util.web.Instances._
+import ipoemi.comicsdownloader.util.AwaitableInstances._
 
-import scala.concurrent.{ExecutionContextExecutor, Future}
+
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContextExecutor
 
 object Main extends App {
 
@@ -21,16 +27,16 @@ object Main extends App {
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContextExecutor = actorSystem.dispatcher
 
-  val downloader = ComicsDownloadService[Zangsisi, Future, String]
-  for {
+  val comicsRoot = "http://marumaru.in/b/manga/133012"
+  val session = web.Session(new URL(comicsRoot), Set.empty[`Set-Cookie`], HttpMethods.GET)
+  val downloader = ComicsDownloadService[Future, Marumaru, web.Path]
+
+  val program = for {
     _ <- downloader.downloadComics(
-      Zangsisi("", "http://zangsisi.net/?page_id=123841"),
-      "comics/신부이야기"
-    ).recover {
-      case err => err.printStackTrace()
-    }
+      Marumaru(session, "", web.Path(comicsRoot)),
+      "comics/늑대와향신료"
+    )
     _ <- Http().shutdownAllConnectionPools()
     _ <- actorSystem.terminate()
   } yield ()
-
 }
