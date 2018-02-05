@@ -1,5 +1,7 @@
 package ipoemi.comicsdownloader.model
 
+import java.net.URLEncoder
+
 import cats.syntax.functor._
 import cats.{Applicative, Eval}
 import ipoemi.comicsdownloader.util._

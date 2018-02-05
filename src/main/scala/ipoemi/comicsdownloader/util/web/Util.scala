@@ -11,12 +11,9 @@ import akka.http.scaladsl.settings.ClientConnectionSettings
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.util.ByteString
-import better.files._
-import cats._
 import cats.implicits._
-import ContextSyntax._
-import ipoemi.comicsdownloader.util.Readable
 import ipoemi.comicsdownloader.util.TitledSyntax._
+import ipoemi.comicsdownloader.util.web.ContextSyntax._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -38,9 +35,14 @@ abstract class Util(
     val portStr = if (fromUrl.getPort == -1 || fromUrl.getPort == 80) "" else s":${fromUrl.getPort}"
     val fromPath = fromUrl.getPath
 
-    if (toPath.startsWith("http")) new URL(toPath)
-    else if (toPath.startsWith("/")) new URL(s"$protocol://$host$portStr$toPath")
-    else new URL(s"$protocol://$host$portStr$fromPath/$toPath")
+    val newPath = toPath
+    if (toPath.startsWith("http")) {
+      new URL(toPath)
+    } else if (newPath.startsWith("/")) {
+      new URL(s"$protocol://$host$portStr$newPath")
+    } else {
+      new URL(s"$protocol://$host$portStr$fromPath/$newPath")
+    }
   }
 
   def requestUrl[F[_]](
@@ -48,9 +50,10 @@ abstract class Util(
     entity: RequestEntity = HttpEntity.Empty
   )(implicit C: Context[F]): Future[F[HttpResponse]] = {
 
-    println("request start")
     var url = pathToUrl(webPath.value.value, webPath.session.lastUrl)
-    println(url)
+    println("==============================Start==============================")
+    println(s"url: ${url}")
+    println("============================//Start==============================")
 
     val connection = if (url.getProtocol == "https")
       Http().outgoingConnectionHttps(
@@ -62,7 +65,11 @@ abstract class Util(
     if (url.getPath == null || url.getPath == "")
       uriBuilder.append("/")
     else {
-      uriBuilder.append(url.getPath.split("/").map(URLEncoder.encode(_, "utf-8")).mkString("/"))
+      val newPath =
+        url.getPath.split("/")
+          .map(URLEncoder.encode(_, "CP949").replace("+", "%20"))
+          .mkString("/")
+      uriBuilder.append(newPath)
       if (url.getPath.last == '/') uriBuilder.append("/")
     }
 
@@ -87,7 +94,6 @@ abstract class Util(
     connection: Connection,
     count: Int = 5
   )(implicit C: Context[F]): Future[F[HttpResponse]] = {
-    println("in retry")
 
     def responseFut = Source.single(webRequest.value).via(connection).runWith(Sink.head)
 
@@ -108,7 +114,6 @@ abstract class Util(
     webResponse: F[HttpResponse]
   )(implicit C: Context[F]): Future[F[HttpResponse]] = {
     val response = webResponse.value
-    println(s"in redirect, response status: ${response.status.intValue}")
     val session = webResponse.session
     val newCookies = response.headers.collect {
       case c: `Set-Cookie` => c
@@ -117,10 +122,8 @@ abstract class Util(
 
     if (response.status.intValue >= 300 && response.status.intValue < 400) {
       var newPath = response.getHeader("Location").get.value
-      println(s"newPath: ${newPath}")
       requestUrl(webResponse.bimap(_ => newSession, _ => Path(newPath)), session.method)
     } else {
-      println("in success")
       Future.successful(webResponse)
     }
   }
@@ -128,14 +131,14 @@ abstract class Util(
   def stringFromResponse[F[_]](
     webResponse: F[HttpResponse]
   )(implicit C: Context[F]): Future[F[String]] = {
-    println("in stringFrom")
+    //as.log.debug(s"Start ${webResponse.session.lastUrl}")
     webResponse.traverse(_.entity.dataBytes.runFold("")(_ + _.decodeString("utf-8")))
   }
 
   def processResponse[F[_]](
     webResponse: F[HttpResponse]
   )(f: ByteString => Unit)(implicit C: Context[F]): Future[F[Done]] = {
-    println("in processResponse")
+    //as.log.debug(s"Start ${webResponse.session.lastUrl}")
     webResponse.traverse(_.entity.dataBytes.runForeach(f))
   }
 

@@ -14,6 +14,7 @@ import akka.util.ByteString
 import better.files._
 import cats.implicits._
 import ContextSyntax._
+import ipoemi.comicsdownloader.util.TitledSyntax._
 import ipoemi.comicsdownloader.util.Readable
 
 import scala.concurrent.duration._
@@ -31,17 +32,34 @@ object Instances {
     val util = new Util() {}
 
     def read(a: F[Path]): Future[F[String]] =
-      for {
+      (for {
         res <- util.requestUrl(a, a.session.method)
         str <- util.stringFromResponse(res)
-      } yield str
+      } yield str).recover {
+        case ex: Exception =>
+          ex.printStackTrace()
+          a.map(_ => "")
+      }
 
     def download(a: F[Path], fileName: String): Future[F[File]] =
-      for {
+      (for {
         destFile <- fileName.toFile.createIfNotExists().pure[Future]
         res <- util.requestUrl(a, a.session.method)
-        done <- util.processResponse(res)(bs => destFile.appendByteArray(bs.toArray))
-      } yield done.map(_ => destFile)
+        done <- {
+          val contentLength = res.value.entity.contentLengthOption.get
+          if (destFile.size < contentLength) {
+            destFile.delete()
+            destFile.createIfNotExists()
+            util.processResponse(res)(bs => destFile.appendByteArray(bs.toArray))
+          } else {
+            Future.successful(a.map(_ => Done))
+          }
+        }
+      } yield done.map(_ => destFile)).recover {
+        case ex: Exception =>
+          ex.printStackTrace()
+          a.map(_ => fileName.toFile)
+      }
 
   }
 

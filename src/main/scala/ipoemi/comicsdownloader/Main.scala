@@ -1,7 +1,7 @@
 package ipoemi.comicsdownloader
 
 import java.io.{File => JFile}
-import java.net.URL
+import java.net.{URL, URLEncoder}
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -16,7 +16,6 @@ import ipoemi.comicsdownloader.service._
 import ipoemi.comicsdownloader.util._
 import ipoemi.comicsdownloader.util.web.Instances._
 import ipoemi.comicsdownloader.util.AwaitableInstances._
-
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContextExecutor
@@ -39,4 +38,5 @@ object Main extends App {
     _ <- Http().shutdownAllConnectionPools()
     _ <- actorSystem.terminate()
   } yield ()
+
 }

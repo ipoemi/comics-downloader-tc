@@ -13,6 +13,7 @@ import scala.concurrent.Future
 trait ComicsDownloadService[E[_], C[_], A] {
 
   import TitledSyntax._
+  import AwaitableSyntax._
 
   def read(ca: C[A])(implicit R: Readable[E, C, A]): E[C[String]]
 
@@ -36,10 +37,8 @@ trait ComicsDownloadService[E[_], C[_], A] {
     for {
       _ <- path.toFile.createDirectories().pure[E]
       comics <- R.read(ca)
-      books = parseBooks(comics).map(_.drop(1).take(1)).value
-      //_ = books.foreach(println)
+      books = parseBooks(comics).value
       bookContents <- books.traverse(read)
-      //_ = bookContents.foreach(println)
       booksPages = bookContents.map(parsePages)
       zipFiles <- booksPages.traverse(downloadPages(_, path))
     } yield zipFiles
@@ -52,11 +51,11 @@ trait ComicsDownloadService[E[_], C[_], A] {
     val dirPath = path + JFile.separator + title
     val zipFilePath = dirPath + ".zip"
     if (ca.value.size > 0)
-      for {
+      (for {
         _ <- dirPath.toFile.createDirectories().pure[E]
         _ <- ca.value.traverse(x => download(x, dirPath + JFile.separator + x.title))
         file <- zipTo(dirPath.toFile, zipFilePath.toFile)
-      } yield file
+      } yield file).await
     else
       zipFilePath.toFile.pure[E]
 
@@ -69,7 +68,7 @@ object ComicsDownloadService {
   import ParsableSyntax._
   import ReadableSyntax._
 
-  implicit def webComicsDownloadService[C[_]] = new ComicsDownloadService[Future, C, web.Path] {
+  implicit def webComicsDownloadService[C[_]]  = new ComicsDownloadService[Future, C, web.Path] {
     def read(ca: C[web.Path])(implicit R: Readable[Future, C, Path]): Future[C[String]] = ca.read
 
     def download(ca: C[web.Path], path: String)(
